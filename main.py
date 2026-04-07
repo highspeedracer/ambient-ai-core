@@ -2,11 +2,10 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from openai import AsyncOpenAI  # Using Async for Enterprise performance
+from openai import AsyncOpenAI
 
 app = FastAPI()
 
-# Allow the iPhone to talk to the server
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,44 +14,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the Groq Engine with the Async Client
 client = AsyncOpenAI(
     api_key=os.environ.get("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1",
 )
 
-# --- EXISTING ENDPOINTS ---
-@app.get("/")
-def read_root():
-    return {"status": "Online", "version": "3.1.0", "message": "Enterprise Agent Active"}
-
-@app.get("/analyze/{patient_id}")
-def analyze_patient(patient_id: str):
-    return {
-        "patient": patient_id,
-        "risk_level": "LOW",
-        "metrics": {"hr_current": 70, "steps_current": 3114},
-        "active_alerts": []
-    }
-
-# --- NEW COPILOT AI ENDPOINT ---
+# --- THE DATA ARCHITECTURE ---
 class ChatMessage(BaseModel):
     message: str
+    # This allows the iPhone to send a dictionary of vitals
+    real_time_metrics: dict = None 
 
+@app.get("/")
+def read_root():
+    return {"status": "Online", "version": "3.2.0"}
+
+# --- THE DYNAMIC AI ENGINE ---
 @app.post("/copilot")
-async def ask_copilot(chat: ChatMessage): # 'async' must be here to use 'await'
+async def ask_copilot(chat: ChatMessage):
+    # Extract the data sent from your iPhone
+    vitals = chat.real_time_metrics or {}
+    hr = vitals.get("hr", "N/A")
+    steps = vitals.get("steps", "N/A")
+
+    # This is the secret sauce: The AI now knows EXACTLY what is happening to the user
     system_prompt = (
-        "You are the Ambient AI Clinical Copilot, an expert triage assistant. "
-        "Keep answers concise, highly clinical, and actionable. "
-        "Current live context: Maria-042 triggered a HIGH risk alert at 02:14 AM. "
-        "Gait analysis showed a 30% reduction in stride length. HR is elevated at 112 bpm. "
-        "Arthur-001 is stable at 70 bpm."
+        "You are the Ambient AI Clinical Copilot. You are currently monitoring a 23-year-old male student. "
+        f"LIVE VITALS: Heart Rate is {hr} bpm. Total steps today: {steps}. "
+        "Context: Patient is healthy but under high cognitive load (coding/studying). "
+        "Keep responses clinical, actionable, and extremely brief. "
+        "If Heart Rate is above 100, mention 'Tachycardia risk'. If below 60, mention 'Bradycardia'."
     )
 
     try:
-        # The 'await' now works because the function is 'async def'
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": chat.message}
@@ -62,5 +58,4 @@ async def ask_copilot(chat: ChatMessage): # 'async' must be here to use 'await'
         return {"reply": response.choices[0].message.content}
     
     except Exception as e:
-        # This catches API errors or connection issues
         return {"reply": f"SYSTEM ERROR: {str(e)}"}
