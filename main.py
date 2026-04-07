@@ -56,9 +56,11 @@ async def ask_copilot(chat: ChatMessage):
     except Exception as e:
         return {"reply": f"SYSTEM ERROR: {str(e)}"}
 
-# --- NEW: THE SBAR SCRIBE ENDPOINT ---
+# --- NEW: THE DYNAMIC SBAR SCRIBE ENDPOINT ---
 class SBARRequest(BaseModel):
     patient_name: str
+    age: int
+    note: str
     vitals: dict
 
 @app.post("/sbar")
@@ -66,7 +68,6 @@ async def generate_sbar(req: SBARRequest):
     hr = req.vitals.get("hr", 0)
     steps = req.vitals.get("steps", 0)
 
-    # We force LLaMA to become a strict medical scribe
     system_prompt = (
         "You are an expert Clinical Scribe. Your ONLY job is to write a formal, strictly formatted "
         "SBAR (Situation, Background, Assessment, Recommendation) shift handoff report. "
@@ -74,10 +75,11 @@ async def generate_sbar(req: SBARRequest):
         "Format with clear headings: **SITUATION:**, **BACKGROUND:**, **ASSESSMENT:**, **RECOMMENDATION:**."
     )
     
+    # The context is now 100% dynamic to the specific patient
     clinical_context = (
-        f"Generate SBAR for {req.patient_name}. "
+        f"Generate SBAR for {req.patient_name}, age {req.age}. "
         f"Latest Biometrics: Heart Rate {hr} bpm, Steps {steps}. "
-        "Context: Patient is a 23-year-old male under high cognitive stress. Simulated environment."
+        f"Nurse's current note/status: {req.note}."
     )
 
     try:
@@ -87,21 +89,20 @@ async def generate_sbar(req: SBARRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": clinical_context}
             ],
-            temperature=0.1, # Extremely low temperature so it doesn't hallucinate
+            temperature=0.1, 
         )
-        # Log this report to the Vault as well
+        
         db.table("patient_logs").insert({
             "heart_rate": hr,
             "steps": steps,
-            "nurse_query": "SYSTEM: GENERATE SBAR",
+            "nurse_query": f"SYSTEM: GENERATE SBAR FOR {req.patient_name}",
             "ai_response": response.choices[0].message.content
         }).execute()
 
         return {"report": response.choices[0].message.content}
     
     except Exception as e:
-        return {"report": f"SBAR GENERATION ERROR: {str(e)}"}
-# --- NEW: FACILITY RADAR ENDPOINT ---
+        return {"report": f"SBAR GENERATION ERROR: {str(e)}"}# --- NEW: FACILITY RADAR ENDPOINT ---
 @app.get("/facility-status")
 async def get_facility_status():
     # In a fully deployed version, this would pull the latest rows from Supabase.
