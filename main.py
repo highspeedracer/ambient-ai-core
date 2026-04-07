@@ -101,3 +101,28 @@ async def generate_sbar(req: SBARRequest):
     
     except Exception as e:
         return {"report": f"SBAR GENERATION ERROR: {str(e)}"}
+# --- NEW: FACILITY RADAR ENDPOINT ---
+@app.get("/facility-status")
+async def get_facility_status():
+    # In a fully deployed version, this would pull the latest rows from Supabase.
+    # For now, we simulate the active Render database responding.
+    import random
+    
+    # We randomize the data slightly to simulate live human biometrics
+    mock_patients = [
+        {"id": "101", "name": "Maria L.", "hr": random.randint(105, 118), "steps": 120, "status": "CRITICAL", "note": "Tachycardia risk"},
+        {"id": "102", "name": "Arthur G.", "hr": random.randint(68, 75), "steps": 3100, "status": "STABLE", "note": "Normal rhythm"},
+        {"id": "103", "name": "James W.", "hr": random.randint(85, 95), "steps": 450, "status": "ELEVATED", "note": "Monitor hydration"},
+        {"id": "104", "name": "Isiah R.", "hr": random.randint(60, 70), "steps": 4210, "status": "STABLE", "note": "Optimal vitals"},
+    ]
+    
+    # Simple Triage Logic Engine: If HR crosses a threshold, change status
+    for p in mock_patients:
+        if p["hr"] > 100:
+            p["status"] = "CRITICAL"
+        elif p["hr"] > 85:
+            p["status"] = "ELEVATED"
+        else:
+            p["status"] = "STABLE"
+
+    return {"patients": mock_patients}
