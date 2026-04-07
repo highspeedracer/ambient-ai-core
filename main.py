@@ -3,59 +3,55 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
+from supabase import create_client, Client
 
 app = FastAPI()
 
+# Allow iPhone connection
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-client = AsyncOpenAI(
-    api_key=os.environ.get("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
-)
+# Initialize Groq & Supabase
+client = AsyncOpenAI(api_key=os.environ.get("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
 
-# --- THE DATA ARCHITECTURE ---
+supabase_url = os.environ.get("SUPABASE_URL")
+supabase_key = os.environ.get("SUPABASE_KEY")
+db: Client = create_client(supabase_url, supabase_key)
+
 class ChatMessage(BaseModel):
     message: str
-    # This allows the iPhone to send a dictionary of vitals
     real_time_metrics: dict = None 
 
-@app.get("/")
-def read_root():
-    return {"status": "Online", "version": "3.2.0"}
-
-# --- THE DYNAMIC AI ENGINE ---
 @app.post("/copilot")
 async def ask_copilot(chat: ChatMessage):
-    # Extract the data sent from your iPhone
     vitals = chat.real_time_metrics or {}
-    hr = vitals.get("hr", "N/A")
-    steps = vitals.get("steps", "N/A")
+    hr = vitals.get("hr", 0)
+    steps = vitals.get("steps", 0)
 
-    # This is the secret sauce: The AI now knows EXACTLY what is happening to the user
-    system_prompt = (
-        "You are the Ambient AI Clinical Copilot. You are currently monitoring a 23-year-old male student. "
-        f"LIVE VITALS: Heart Rate is {hr} bpm. Total steps today: {steps}. "
-        "Context: Patient is healthy but under high cognitive load (coding/studying). "
-        "Keep responses clinical, actionable, and extremely brief. "
-        "If Heart Rate is above 100, mention 'Tachycardia risk'. If below 60, mention 'Bradycardia'."
-    )
+    system_prompt = f"You are Ambient AI. Vitals: HR {hr}, Steps {steps}. Be clinical and brief."
 
     try:
+        # 1. Get AI response
         response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": chat.message}
-            ],
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": chat.message}],
             temperature=0.2,
         )
-        return {"reply": response.choices[0].message.content}
+        ai_reply = response.choices[0].message.content
+
+        # 2. ARCHIVE TO THE VAULT (The $200M Move)
+        db.table("patient_logs").insert({
+            "heart_rate": hr,
+            "steps": steps,
+            "nurse_query": chat.message,
+            "ai_response": ai_reply
+        }).execute()
+
+        return {"reply": ai_reply}
     
     except Exception as e:
         return {"reply": f"SYSTEM ERROR: {str(e)}"}
