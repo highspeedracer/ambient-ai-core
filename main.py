@@ -55,13 +55,13 @@ def ask_copilot(chat: ChatMessage):
 
     try:
         # Removed 'await' because we are using the synchronous client
-        response = client.chat.completions.create(
-            model="llama3-70b-8192", 
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile", # Updated for April 2026 support
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": chat.message}
             ],
-            temperature=0.2, 
+            temperature=0.2,
         )
         return {"reply": response.choices[0].message.content}
     
