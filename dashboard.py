@@ -10,7 +10,7 @@ st.subheader("Patient Status: Arthur-001")
 
 # 1. Fetch data from our API
 try:
-    response = requests.get("http://127.0.0.1:8000/analyze/arthur-001")
+    response = requests.get("https://ambient-ai-brain.onrender.com/analyze/arthur-001")
     data = response.json()
     
     # 2. Top Level Metrics (The "At a Glance" view)
