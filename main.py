@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from openai import OpenAI  # Switched from AsyncOpenAI for stability
+from openai import AsyncOpenAI  # Using Async for Enterprise performance
 
 app = FastAPI()
 
@@ -15,9 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the Groq Engine (using LLaMA 3)
-# We are using the standard OpenAI client but pointing it to Groq's servers
-client = OpenAI(
+# Initialize the Groq Engine with the Async Client
+client = AsyncOpenAI(
     api_key=os.environ.get("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1",
 )
@@ -25,11 +24,10 @@ client = OpenAI(
 # --- EXISTING ENDPOINTS ---
 @app.get("/")
 def read_root():
-    return {"status": "Online", "version": "3.0.0", "message": "Enterprise Agent Active"}
+    return {"status": "Online", "version": "3.1.0", "message": "Enterprise Agent Active"}
 
 @app.get("/analyze/{patient_id}")
 def analyze_patient(patient_id: str):
-    # This is your existing Arthur-001 code
     return {
         "patient": patient_id,
         "risk_level": "LOW",
@@ -42,9 +40,7 @@ class ChatMessage(BaseModel):
     message: str
 
 @app.post("/copilot")
-def ask_copilot(chat: ChatMessage):
-    # We inject the "System Prompt" so the AI knows it is a medical assistant
-    # and we feed it the live database context invisibly.
+async def ask_copilot(chat: ChatMessage): # 'async' must be here to use 'await'
     system_prompt = (
         "You are the Ambient AI Clinical Copilot, an expert triage assistant. "
         "Keep answers concise, highly clinical, and actionable. "
@@ -54,9 +50,9 @@ def ask_copilot(chat: ChatMessage):
     )
 
     try:
-        # Removed 'await' because we are using the synchronous client
+        # The 'await' now works because the function is 'async def'
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile", # Updated for April 2026 support
+            model="llama-3.3-70b-versatile", 
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": chat.message}
@@ -66,4 +62,5 @@ def ask_copilot(chat: ChatMessage):
         return {"reply": response.choices[0].message.content}
     
     except Exception as e:
+        # This catches API errors or connection issues
         return {"reply": f"SYSTEM ERROR: {str(e)}"}
