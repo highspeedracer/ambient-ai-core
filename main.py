@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from openai import AsyncOpenAI
+from openai import OpenAI  # Switched from AsyncOpenAI for stability
 
 app = FastAPI()
 
@@ -16,7 +16,8 @@ app.add_middleware(
 )
 
 # Initialize the Groq Engine (using LLaMA 3)
-client = AsyncOpenAI(
+# We are using the standard OpenAI client but pointing it to Groq's servers
+client = OpenAI(
     api_key=os.environ.get("GROQ_API_KEY"),
     base_url="https://api.groq.com/openai/v1",
 )
@@ -41,7 +42,7 @@ class ChatMessage(BaseModel):
     message: str
 
 @app.post("/copilot")
-async def ask_copilot(chat: ChatMessage):
+def ask_copilot(chat: ChatMessage):
     # We inject the "System Prompt" so the AI knows it is a medical assistant
     # and we feed it the live database context invisibly.
     system_prompt = (
@@ -53,13 +54,14 @@ async def ask_copilot(chat: ChatMessage):
     )
 
     try:
-        response = await client.chat.completions.create(
-            model="llama3-70b-8192", # The massive 70-Billion parameter LLaMA model
+        # Removed 'await' because we are using the synchronous client
+        response = client.chat.completions.create(
+            model="llama3-70b-8192", 
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": chat.message}
             ],
-            temperature=0.2, # Low temperature keeps it strictly factual/clinical
+            temperature=0.2, 
         )
         return {"reply": response.choices[0].message.content}
     
