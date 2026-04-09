@@ -43,7 +43,7 @@ async def ask_copilot(chat: ChatMessage):
         )
         ai_reply = response.choices[0].message.content
 
-        # 2. ARCHIVE TO THE VAULT (The $200M Move)
+        # 2. ARCHIVE TO THE VAULT
         db.table("patient_logs").insert({
             "heart_rate": hr,
             "steps": steps,
@@ -55,6 +55,7 @@ async def ask_copilot(chat: ChatMessage):
     
     except Exception as e:
         return {"reply": f"SYSTEM ERROR: {str(e)}"}
+
 
 # --- NEW: THE DYNAMIC SBAR SCRIBE ENDPOINT ---
 class SBARRequest(BaseModel):
@@ -102,19 +103,20 @@ async def generate_sbar(req: SBARRequest):
         return {"report": response.choices[0].message.content}
     
     except Exception as e:
-        return {"report": f"SBAR GENERATION ERROR: {str(e)}"}# --- NEW: FACILITY RADAR ENDPOINT ---
+        return {"report": f"SBAR GENERATION ERROR: {str(e)}"}
+
+
+# --- NEW: FACILITY RADAR ENDPOINT ---
 @app.get("/facility-status")
 async def get_facility_status():
-    # In a fully deployed version, this would pull the latest rows from Supabase.
-    # For now, we simulate the active Render database responding.
     import random
     
-    # We randomize the data slightly to simulate live human biometrics
+    # THE FIX: Age is now explicitly included for every patient
     mock_patients = [
-        {"id": "101", "name": "Maria L.", "hr": random.randint(105, 118), "steps": 120, "status": "CRITICAL", "note": "Tachycardia risk"},
-        {"id": "102", "name": "Arthur G.", "hr": random.randint(68, 75), "steps": 3100, "status": "STABLE", "note": "Normal rhythm"},
-        {"id": "103", "name": "James W.", "hr": random.randint(85, 95), "steps": 450, "status": "ELEVATED", "note": "Monitor hydration"},
-        {"id": "104", "name": "Isiah R.", "hr": random.randint(60, 70), "steps": 4210, "status": "STABLE", "note": "Optimal vitals"},
+        {"id": "101", "name": "Maria L.", "age": 78, "hr": random.randint(105, 118), "steps": 120, "status": "CRITICAL", "note": "Tachycardia risk"},
+        {"id": "102", "name": "Arthur G.", "age": 65, "hr": random.randint(68, 75), "steps": 3100, "status": "STABLE", "note": "Normal rhythm"},
+        {"id": "103", "name": "James W.", "age": 54, "hr": random.randint(85, 95), "steps": 450, "status": "ELEVATED", "note": "Monitor hydration"},
+        {"id": "104", "name": "Isiah R.", "age": 23, "hr": random.randint(60, 70), "steps": 4210, "status": "STABLE", "note": "Optimal vitals"},
     ]
     
     # Simple Triage Logic Engine: If HR crosses a threshold, change status
