@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
@@ -129,3 +129,33 @@ async def get_facility_status():
             p["status"] = "STABLE"
 
     return {"patients": mock_patients}
+
+# --- NEW: THE AMBIENT EAR (VOICE TRANSCRIPTION) ---
+@app.post("/transcribe")
+async def transcribe_voice(file: UploadFile = File(...)):
+    try:
+        # Read the audio file sent from the iPhone
+        file_bytes = await file.read()
+        
+        # We must save it temporarily so Groq can process it
+        temp_file_path = f"temp_{file.filename}"
+        with open(temp_file_path, "wb") as f:
+            f.write(file_bytes)
+            
+        # Send the audio to Groq's Whisper model
+        with open(temp_file_path, "rb") as audio_file:
+            transcription = await client.audio.transcriptions.create(
+                file=(temp_file_path, audio_file.read()),
+                model="whisper-large-v3",
+                prompt="The audio is a clinical medical observation. Use standard medical terminology.",
+                response_format="text"
+            )
+            
+        # Clean up the temporary file
+        os.remove(temp_file_path)
+        
+        # Return the exact text to the iPhone
+        return {"text": transcription}
+        
+    except Exception as e:
+        return {"error": f"TRANSCRIPTION FAILED: {str(e)}"}
